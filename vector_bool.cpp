@@ -82,22 +82,6 @@ int main() {
     // Volatile variable to prevent compiler from optimizing away the reads
     volatile bool sink = false;
 
-    // --- Case 1: std::vector<bool> ---
-    {
-        // Note: std::vector<bool> uses the allocator for its internal packed block type, not for `bool` itself.
-        // The pre-faulting logic will still apply to the underlying memory blocks.
-        std::vector<bool, PreFaultAllocator<bool>> bool_vec(ITEM_COUNT, PreFaultAllocator<bool>());
-        
-        Timer timer("Case 1: std::vector<bool>");
-        for (size_t i = 0; i < ACCESS_COUNT; ++i) {
-            size_t idx = indices[i];
-            bool_vec[idx] = !bool_vec[idx]; // Read and write
-            sink = bool_vec[idx];           // Another read
-        }
-    }
-
-    std::cout << std::endl;
-
     // --- Case 2: Raw contiguous memory ---
     {
         PreFaultAllocator<uint8_t> allocator;
@@ -116,5 +100,30 @@ int main() {
         allocator.deallocate(raw_mem, ITEM_COUNT);
     }
 
+    // --- Case 1: std::vector<bool> ---
+    {
+        // Note: std::vector<bool> uses the allocator for its internal packed block type, not for `bool` itself.
+        // The pre-faulting logic will still apply to the underlying memory blocks.
+        std::vector<bool, PreFaultAllocator<bool>> bool_vec(ITEM_COUNT, PreFaultAllocator<bool>());
+        
+        Timer timer("Case 1: std::vector<bool>");
+        for (size_t i = 0; i < ACCESS_COUNT; ++i) {
+            size_t idx = indices[i];
+            bool_vec[idx] = !bool_vec[idx]; // Read and write
+            sink = bool_vec[idx];           // Another read
+        }
+    }
+
+    std::cout << std::endl;
+
+
     return 0;
 }
+
+
+// g++ vector_bool.cpp -std=c++23 -O3 -march=native && taskset -c 31 ./a.out 
+// Generating 20000000 random indices...
+// Done generating indices.
+
+// [Case 2: Raw Memory (uint8_t*)] took 15.9348 ms.
+// [Case 1: std::vector<bool>] took 97.7998 ms.
